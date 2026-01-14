@@ -93,4 +93,5 @@ A web app to manage freight agents and send bulk email campaigns.
 
 ## License
 
-Private, for Acumen Freight Solutions internal use.
+This project is licensed under the MIT License.  
+See the [LICENSE](./LICENSE) file for details.
