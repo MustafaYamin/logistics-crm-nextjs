@@ -1,4 +1,4 @@
-# Acumen Freight Solutions
+# Logistics CRM NextJS
 
 A web app to manage freight agents and send bulk email campaigns.
 
