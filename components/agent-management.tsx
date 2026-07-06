@@ -27,9 +27,7 @@ const specialtyOptions = [
   'Refrigerated', 'Oversized', 'Dry Van', 'LTL', 'Flatbed', 'Heavy Haul', 'Air', 'Sea', 'Ground', 'Rail'
 ];
 
-const countries = [
-  'United States', 'Canada', 'Mexico', 'United Kingdom', 'Germany', 'France', 'Italy', 'Spain', 'Netherlands', 'Belgium', 'China', 'Japan', 'South Korea', 'India', 'Australia', 'Brazil', 'Argentina', 'Chile'
-];
+
 
 export default function AgentManagement() {
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -351,14 +349,7 @@ const parseExcelFile = (file: File) => {
 
                 <div className="space-y-2">
                   <Label htmlFor="country">Country</Label>
-                  <Select value={formData.country ?? ''} onValueChange={(value) => setFormData(prev => ({ ...prev, country: value }))}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select country" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {countries.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <Input id="country" value={formData.country ?? ''} onChange={(e) => setFormData(prev => ({ ...prev, country: e.target.value }))} placeholder="Country" />
                 </div>
 
                 <div className="space-y-2">

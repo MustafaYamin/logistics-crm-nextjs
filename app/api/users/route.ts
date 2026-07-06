@@ -24,6 +24,15 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    const currentTotalMembers = await prisma.orgMember.count({
+      where: { organizationId: org!.id },
+    });
+
+    // 1 Admin/Owner + 5 Members = max 6 users per org
+    if (currentTotalMembers >= 6) {
+      return NextResponse.json({ error: "Member limit reached. You can only create up to 5 additional members." }, { status: 403 });
+    }
+
     const { email, password, orgRole } = await req.json();
     if (!email || !password || !orgRole) {
       return NextResponse.json({ error: "All fields required" }, { status: 400 });

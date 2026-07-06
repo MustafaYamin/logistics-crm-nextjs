@@ -1,26 +1,31 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import nodemailer from 'nodemailer';
 import { requireOrgPages, assertEmailQuota } from '@/lib/tenancy';
+import { decryptString } from '@/lib/encryption';
 
-let transporter: nodemailer.Transporter | null = null;
+const getTransporter = (org: any): nodemailer.Transporter => {
+  const host = org.smtpHost || process.env.SMTP_HOST;
+  const port = org.smtpPort || Number(process.env.SMTP_PORT);
+  const user = org.smtpUser || process.env.SMTP_USER;
+  const pass = org.smtpPass ? decryptString(org.smtpPass) : process.env.SMTP_PASS;
 
-const getTransporter = (): nodemailer.Transporter => {
-  if (!transporter) {
-    transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT),
-      secure: Number(process.env.SMTP_PORT) === 465,
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-      pool: true,
-      maxConnections: 5,
-      connectionTimeout: 60000,
-      socketTimeout: 60000,
-    });
+  if (!host || !port || !user || !pass) {
+    throw new Error('SMTP credentials not configured for this organization');
   }
-  return transporter;
+
+  return nodemailer.createTransport({
+    host: host,
+    port: Number(port),
+    secure: Number(port) === 465,
+    auth: {
+      user: user,
+      pass: pass,
+    },
+    pool: true,
+    maxConnections: 5,
+    connectionTimeout: 60000,
+    socketTimeout: 60000,
+  });
 };
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -37,23 +42,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const { to, cc, subject, text, html, delaySeconds = 15 } = req.body;
 
   if (!to || !subject || (!text && !html)) {
-    return res.status(400).json({ 
+    return res.status(400).json({
       error: 'Missing required fields',
       details: 'Required: to, subject, and either text or html'
     });
   }
 
-  if (!process.env.SMTP_HOST || !process.env.SMTP_PORT || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
-    return res.status(500).json({ error: 'SMTP credentials not configured' });
-  }
-
   try {
     await assertEmailQuota(org!.id);
 
-    const transporter = getTransporter();
+    const transporter = getTransporter(org);
+    const fromUser = org!.smtpUser || process.env.SMTP_USER;
 
     const mailOptions: any = {
-      from: `"Acumen Freight Solutions" <${process.env.SMTP_USER}>`,
+      from: fromUser,
       to,
       subject,
     };
@@ -79,17 +81,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const sendDuration = Date.now() - startTime;
     console.log('[send-email] Email sent in', sendDuration + 'ms');
 
-    const delay = Math.max(0, Math.min(5, Number(delaySeconds) || 0)); 
+    const delay = Math.max(0, Math.min(5, Number(delaySeconds) || 0));
     if (delay > 0) {
-        console.log(`[send-email] Adding ${delay}s server delay...`);
-        await new Promise(resolve => setTimeout(resolve, delay * 1000));
+      console.log(`[send-email] Adding ${delay}s server delay...`);
+      await new Promise(resolve => setTimeout(resolve, delay * 1000));
     }
 
     const totalDuration = Date.now() - startTime;
     console.log('[send-email] Total request time:', totalDuration + 'ms');
 
-    res.status(200).json({ 
-      success: true, 
+    res.status(200).json({
+      success: true,
       messageId: info?.messageId,
       accepted: info?.accepted,
       rejected: info?.rejected,
@@ -100,8 +102,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   } catch (err: any) {
     console.error('[send-email] Error:', err);
-    res.status(500).json({ 
-      error: 'Failed to send email', 
+    res.status(500).json({
+      error: 'Failed to send email',
       details: err instanceof Error ? err.message : 'Unknown error'
     });
   }

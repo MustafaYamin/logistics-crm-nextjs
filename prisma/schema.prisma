@@ -16,6 +16,13 @@ model Organization {
   stripeCustomerId     String?       @unique
   stripeSubscriptionId String?       @unique
   seats                Int           @default(1)
+  
+  // Custom SMTP Settings
+  smtpHost             String?
+  smtpPort             Int?
+  smtpUser             String?
+  smtpPass             String?       @db.Text
+
   createdAt            DateTime      @default(now())
   
   members              OrgMember[]

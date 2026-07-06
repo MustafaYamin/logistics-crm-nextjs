@@ -32,6 +32,7 @@ export const authOptions: NextAuthOptions = {
         if (!isValid) return null;
 
         const membership = user.memberships[0];
+        const isPaid = membership ? (membership.organization.plan !== 'FREE' || !!membership.organization.stripeSubscriptionId) : false;
         
         return {
           id: String(user.id),
@@ -39,6 +40,7 @@ export const authOptions: NextAuthOptions = {
           orgId: membership ? String(membership.organizationId) : null,
           orgRole: membership ? membership.role : null,
           orgSlug: membership ? membership.organization.slug : null,
+          isPaid,
         };
       },
     }),
@@ -50,6 +52,8 @@ export const authOptions: NextAuthOptions = {
         token.orgId = (user as any).orgId;
         token.orgRole = (user as any).orgRole;
         token.orgSlug = (user as any).orgSlug;
+        token.isSuperAdmin = user.email === 'mustafayamin5@gmail.com';
+        token.isPaid = (user as any).isPaid;
       }
       return token;
     },
@@ -59,6 +63,8 @@ export const authOptions: NextAuthOptions = {
         (session.user as any).orgId = token.orgId as string | null;
         (session.user as any).orgRole = token.orgRole as string | null;
         (session.user as any).orgSlug = token.orgSlug as string | null;
+        (session.user as any).isSuperAdmin = token.isSuperAdmin as boolean;
+        (session.user as any).isPaid = token.isPaid as boolean;
       }
       return session;
     },
