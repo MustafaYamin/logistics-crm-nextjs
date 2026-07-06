@@ -8,6 +8,48 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Organization {
+  id                   Int           @id @default(autoincrement())
+  name                 String
+  slug                 String        @unique
+  plan                 Plan          @default(FREE)
+  stripeCustomerId     String?       @unique
+  stripeSubscriptionId String?       @unique
+  seats                Int           @default(1)
+  createdAt            DateTime      @default(now())
+  
+  members              OrgMember[]
+  agents               Agent[]
+  emailTemplates       EmailTemplate[]
+  freightQueries       FreightQuery[]
+  emailStatuses        EmailStatus[]
+}
+
+model OrgMember {
+  id             Int          @id @default(autoincrement())
+  organizationId Int
+  userId         Int
+  role           OrgRole      @default(MEMBER)
+  
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  user           User         @relation(fields: [userId], references: [id])
+
+  @@unique([organizationId, userId])
+}
+
+enum OrgRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum Plan {
+  FREE
+  STARTER
+  GROWTH
+  ENTERPRISE
+}
+
 model User {
   id           Int        @id @default(autoincrement())
   email        String     @unique
@@ -16,72 +58,68 @@ model User {
   updatedAt    DateTime   @updatedAt
 
   // Relations
-  agents       Agent[]
-  roles        UserRole[]
-}
-
-model UserRole {
-  id     Int   @id @default(autoincrement())
-  role   Role
-  user   User  @relation(fields: [userId], references: [id])
-  userId Int
-}
-
-enum Role {
-  ADMIN
-  CLIENT
+  memberships  OrgMember[]
 }
 
 model Agent {
-  id        Int      @id @default(autoincrement())
-  name      String
-  email     String
-  phone     String?
-  company   String?
-  address   String?
-  city      String?
-  country   String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id             Int          @id @default(autoincrement())
+  organizationId Int
+  name           String
+  email          String
+  phone          String?
+  company        String?
+  address        String?
+  city           String?
+  country        String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
   // Relation
-  user      User     @relation(fields: [userId], references: [id])
-  userId    Int
+  organization   Organization @relation(fields: [organizationId], references: [id])
 
-  // ✅ Composite unique constraint (email + userId)
-  @@unique([userId, email])
+  // Composite unique constraint
+  @@unique([organizationId, email])
 }
 
 model EmailTemplate {
-  id          Int      @id @default(autoincrement())
-  name        String
-  subject     String
-  htmlContent String   @db.Text
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id             Int          @id @default(autoincrement())
+  organizationId Int
+  name           String
+  subject        String
+  htmlContent    String       @db.Text
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id])
 }
 
 model FreightQuery {
-  id                  Int      @id @default(autoincrement())
+  id                  Int          @id @default(autoincrement())
+  organizationId      Int
   origin              String
   destination         String
   cargoType           String
   weight              String
   dimensions          String
-  pickupDate          String // Keeping as string to match current API, usually DateTime is better
+  pickupDate          String 
   deliveryDate        String
-  specialRequirements String?  @db.Text
-  createdAt           DateTime @default(now())
+  specialRequirements String?      @db.Text
+  createdAt           DateTime     @default(now())
+
+  organization        Organization @relation(fields: [organizationId], references: [id])
 }
 
 model EmailStatus {
-  id        Int      @id @default(autoincrement())
-  agentName String
-  email     String
-  status    String   // pending, sent, delivered, etc.
-  sentAt    DateTime?
-  openedAt  DateTime?
-  repliedAt DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id             Int          @id @default(autoincrement())
+  organizationId Int
+  agentName      String
+  email          String
+  status         String       // pending, sent, delivered, etc.
+  sentAt         DateTime?
+  openedAt       DateTime?
+  repliedAt      DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id])
 }

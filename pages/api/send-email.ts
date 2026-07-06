@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import nodemailer from 'nodemailer';
+import { requireOrgPages, assertEmailQuota } from '@/lib/tenancy';
 
 let transporter: nodemailer.Transporter | null = null;
 
@@ -23,6 +24,9 @@ const getTransporter = (): nodemailer.Transporter => {
 };
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  const { error, org } = await requireOrgPages(req, res);
+  if (error) return;
+
   const startTime = Date.now();
   console.log('[send-email] Request received at:', new Date().toISOString());
 
@@ -32,7 +36,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const { to, cc, subject, text, html, delaySeconds = 15 } = req.body;
 
-  // Validate required fields - either text or html must be provided
   if (!to || !subject || (!text && !html)) {
     return res.status(400).json({ 
       error: 'Missing required fields',
@@ -45,30 +48,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
+    await assertEmailQuota(org!.id);
+
     const transporter = getTransporter();
 
-    // Prepare email options
     const mailOptions: any = {
       from: `"Acumen Freight Solutions" <${process.env.SMTP_USER}>`,
       to,
       subject,
     };
 
-    // Add CC if provided in request or from environment
     if (cc) {
       mailOptions.cc = cc;
     } else if (process.env.EMAIL_CC) {
       mailOptions.cc = process.env.EMAIL_CC;
     }
 
-    // Handle HTML or text content
     if (html) {
-      // If HTML is provided, use it directly
       mailOptions.html = html;
-      // Generate plain text version from HTML (strip tags)
       mailOptions.text = html.replace(/<[^>]*>/g, '').replace(/\n\s*\n/g, '\n');
     } else if (text) {
-      // If only text is provided, convert to HTML
       mailOptions.text = text;
       mailOptions.html = text
         .replace(/\n/g, '<br>')
@@ -80,7 +79,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const sendDuration = Date.now() - startTime;
     console.log('[send-email] Email sent in', sendDuration + 'ms');
 
-    // Server-side delay (capped at 5 seconds to prevent timeouts)
     const delay = Math.max(0, Math.min(5, Number(delaySeconds) || 0)); 
     if (delay > 0) {
         console.log(`[send-email] Adding ${delay}s server delay...`);
@@ -100,11 +98,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       delayApplied: delay
     });
 
-  } catch (error) {
-    console.error('[send-email] Error:', error);
+  } catch (err: any) {
+    console.error('[send-email] Error:', err);
     res.status(500).json({ 
       error: 'Failed to send email', 
-      details: error instanceof Error ? error.message : 'Unknown error'
+      details: err instanceof Error ? err.message : 'Unknown error'
     });
   }
 }

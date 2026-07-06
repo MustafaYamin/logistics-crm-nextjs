@@ -1,52 +1,26 @@
-
-import { NextResponse } from "next/server";
-import {prisma} from "@/lib/prisma";
-import { getServerSession } from "next-auth";
-// import { authOptions } from "@/lib/auth"; // your NextAuth config
-// import { authOptions } from "../auth/[...nextauth]/route";
-import { authOptions } from "@/lib/auth";
+import { NextResponse, NextRequest } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { requireOrg } from "@/lib/tenancy";
 
 // GET agents
-export async function GET() {
-  const session = await getServerSession(authOptions);
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+export async function GET(req: NextRequest) {
+  const { error, org } = await requireOrg(req);
+  if (error) return error;
 
-  // If ADMIN (loginAs=ADMIN) → get all agents
-  if (session.user && (session.user as any).loginAs === "ADMIN") {
-    const agents = await prisma.agent.findMany();
-    return NextResponse.json(agents);
-  }
-
-  // If CLIENT (or Admin logging in as Client) → get only their agents
-  if (!session.user || typeof (session.user as any).id === "undefined") {
-    return NextResponse.json({ error: "User ID not found in session" }, { status: 400 });
-  }
-  const userId = Number((session.user as any).id);
-  if (isNaN(userId)) {
-    return NextResponse.json({ error: "Invalid user ID" }, { status: 400 });
-  }
   const agents = await prisma.agent.findMany({
-    where: { userId },
+    where: { organizationId: org!.id },
   });
 
   return NextResponse.json(agents);
 }
+
 // POST create agent
-export async function POST(req: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+export async function POST(req: NextRequest) {
+  const { error, org } = await requireOrg(req);
+  if (error) return error;
 
   try {
     const data = await req.json();
-    const userId = Number((session.user as any).id);
-
-    if (isNaN(userId)) {
-      return NextResponse.json({ error: "Invalid user ID" }, { status: 400 });
-    }
 
     if (!data.name || !data.email) {
       return NextResponse.json({ error: "Name and Email are required." }, { status: 400 });
@@ -61,7 +35,7 @@ export async function POST(req: Request) {
         address: data.address,
         city: data.city,
         country: data.country,
-        userId,
+        organizationId: org!.id,
       },
     });
 
@@ -69,7 +43,7 @@ export async function POST(req: Request) {
   } catch (e: any) {
     if (e.code === "P2002") {
       return NextResponse.json(
-        { error: "Agent with this email already exists for your account." },
+        { error: "Agent with this email already exists for your organization." },
         { status: 409 }
       );
     }

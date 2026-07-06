@@ -1,10 +1,15 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { prisma } from '@/lib/prisma';
+import { requireOrgPages } from '@/lib/tenancy';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  const { error, org } = await requireOrgPages(req, res);
+  if (error) return;
+
   if (req.method === 'GET') {
     try {
       const statuses = await prisma.emailStatus.findMany({
+        where: { organizationId: org!.id },
         orderBy: { updatedAt: 'desc' }
       });
       res.status(200).json(statuses);
@@ -17,6 +22,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const { id, ...data } = req.body;
       const status = await prisma.emailStatus.create({
         data: {
+          organizationId: org!.id,
           agentName: data.agentName,
           email: data.email,
           status: data.status,
@@ -34,7 +40,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     try {
       const { id, ...update } = req.body;
       
-      // Convert string dates to Date objects if present
+      const existing = await prisma.emailStatus.findUnique({ where: { id: Number(id) } });
+      if (!existing || existing.organizationId !== org!.id) {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+
       if (update.sentAt) update.sentAt = new Date(update.sentAt);
       if (update.openedAt) update.openedAt = new Date(update.openedAt);
       if (update.repliedAt) update.repliedAt = new Date(update.repliedAt);
@@ -51,6 +61,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   } else if (req.method === 'DELETE') {
     try {
       const { id } = req.body;
+      
+      const existing = await prisma.emailStatus.findUnique({ where: { id: Number(id) } });
+      if (!existing || existing.organizationId !== org!.id) {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+
       await prisma.emailStatus.delete({
         where: { id: Number(id) }
       });

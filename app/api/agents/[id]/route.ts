@@ -1,32 +1,20 @@
+import { NextResponse, NextRequest } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { requireOrg } from "@/lib/tenancy";
 
-
-import { NextResponse } from "next/server";
-import {prisma} from "@/lib/prisma";
-import { getServerSession } from "next-auth";
-// import { authOptions } from "@/lib/auth";
-import { authOptions } from "@/lib/auth";
-// PUT update agent
-export async function PUT(req: Request, context: any) {
+export async function PUT(req: NextRequest, context: any) {
   try {
     const { id } = context.params;
-    if (isNaN(Number(id))) {
-      return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
-    }
+    if (isNaN(Number(id))) return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
 
-    const session = await getServerSession(authOptions);
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const { error, org } = await requireOrg(req);
+    if (error) return error;
+
+    const agent = await prisma.agent.findUnique({ where: { id: Number(id) } });
+    if (!agent) return NextResponse.json({ error: "Agent not found" }, { status: 404 });
+    if (agent.organizationId !== org!.id) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     const body = await req.json();
-
-    // Ensure client can only update his own agents
-    const agent = await prisma.agent.findUnique({ where: { id: Number(id) } });
-
-    if (!agent) return NextResponse.json({ error: "Agent not found" }, { status: 404 });
-
-    const user = session.user as { id?: string | number; loginAs?: string };
-    if (!user || (user.loginAs !== "ADMIN" && agent.userId !== Number(user.id))) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
 
     const updatedAgent = await prisma.agent.update({
       where: { id: Number(id) },
@@ -38,7 +26,6 @@ export async function PUT(req: Request, context: any) {
         address: body.address,
         city: body.city,
         country: body.country,
-        // Explicitly exclude userId/id/dates
       },
     });
 
@@ -49,25 +36,17 @@ export async function PUT(req: Request, context: any) {
   }
 }
 
-// DELETE agent
-export async function DELETE(_req: Request, context: any) {
+export async function DELETE(req: NextRequest, context: any) {
   try {
     const { id } = context.params;
-    if (isNaN(Number(id))) {
-      return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
-    }
+    if (isNaN(Number(id))) return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
 
-    const session = await getServerSession(authOptions);
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const { error, org } = await requireOrg(req);
+    if (error) return error;
 
     const agent = await prisma.agent.findUnique({ where: { id: Number(id) } });
-
     if (!agent) return NextResponse.json({ error: "Agent not found" }, { status: 404 });
-
-    const user = session.user as { id?: string | number; loginAs?: string };
-    if (!user || (user.loginAs !== "ADMIN" && agent.userId !== Number(user.id))) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+    if (agent.organizationId !== org!.id) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     await prisma.agent.delete({ where: { id: Number(id) } });
 

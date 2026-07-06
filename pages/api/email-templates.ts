@@ -1,10 +1,15 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { prisma } from '@/lib/prisma';
+import { requireOrgPages } from '@/lib/tenancy';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  const { error, org } = await requireOrgPages(req, res);
+  if (error) return;
+
   if (req.method === 'GET') {
     try {
       const templates = await prisma.emailTemplate.findMany({
+        where: { organizationId: org!.id },
         orderBy: { createdAt: 'desc' }
       });
       res.status(200).json(templates);
@@ -21,7 +26,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
 
       const template = await prisma.emailTemplate.create({
-        data: { name, subject, htmlContent }
+        data: { organizationId: org!.id, name, subject, htmlContent }
       });
       
       res.status(201).json(template);
@@ -35,6 +40,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       
       if (!id) {
         return res.status(400).json({ error: 'Template ID is required' });
+      }
+
+      const existing = await prisma.emailTemplate.findUnique({ where: { id: parseInt(id) } });
+      if (!existing || existing.organizationId !== org!.id) {
+        return res.status(403).json({ error: 'Forbidden' });
       }
 
       await prisma.emailTemplate.delete({

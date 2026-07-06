@@ -1,53 +1,86 @@
-import { NextResponse } from "next/server";
+import { NextResponse, NextRequest } from "next/server";
 import bcrypt from "bcryptjs";
-import {prisma} from "@/lib/prisma";
+import { prisma } from "@/lib/prisma";
+import { requireOrg } from "@/lib/tenancy";
 
-export async function GET() {
-  const users = await prisma.user.findMany({ include: { roles: true } });
-  return NextResponse.json(users);
+export async function GET(req: NextRequest) {
+  const { error, org } = await requireOrg(req);
+  if (error) return error;
+
+  const members = await prisma.orgMember.findMany({
+    where: { organizationId: org!.id },
+    include: { user: true },
+  });
+
+  return NextResponse.json(members);
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  const { error, org, role } = await requireOrg(req);
+  if (error) return error;
+
+  if (role !== "ADMIN" && role !== "OWNER") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   try {
-    const { email, password, roles } = await req.json();
-    if (!email || !password || !roles?.length) {
+    const { email, password, orgRole } = await req.json();
+    if (!email || !password || !orgRole) {
       return NextResponse.json({ error: "All fields required" }, { status: 400 });
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
 
-    const user = await prisma.user.create({
-      data: {
-        email,
-        passwordHash,
-        roles: {
-          create: roles.map((r: string) => ({ role: r })),
-        },
-      },
-      include: { roles: true },
+    let user = await prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      user = await prisma.user.create({
+        data: { email, passwordHash },
+      });
+    }
+
+    const existingMember = await prisma.orgMember.findUnique({
+      where: { organizationId_userId: { organizationId: org!.id, userId: user.id } },
     });
 
-    return NextResponse.json(user, { status: 201 });
+    if (existingMember) {
+      return NextResponse.json({ error: "User is already in this organization" }, { status: 409 });
+    }
+
+    const member = await prisma.orgMember.create({
+      data: {
+        organizationId: org!.id,
+        userId: user.id,
+        role: orgRole,
+      },
+      include: { user: true },
+    });
+
+    return NextResponse.json(member, { status: 201 });
   } catch (err) {
     console.error(err);
-    return NextResponse.json({ error: "Failed to create user" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to add user" }, { status: 500 });
   }
 }
 
-export async function DELETE(req: Request) {
+export async function DELETE(req: NextRequest) {
+  const { error, org, role } = await requireOrg(req);
+  if (error) return error;
+
+  if (role !== "ADMIN" && role !== "OWNER") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   try {
-    const { id } = await req.json();
+    const { id } = await req.json(); // This id is the userId
     if (!id) return NextResponse.json({ error: "User ID required" }, { status: 400 });
 
-    // Delete related roles first
-    await prisma.userRole.deleteMany({ where: { userId: id } });
+    await prisma.orgMember.delete({
+      where: { organizationId_userId: { organizationId: org!.id, userId: id } },
+    });
 
-    // Then delete user
-    await prisma.user.delete({ where: { id } });
-
-    return NextResponse.json({ message: "User deleted ✅" });
+    return NextResponse.json({ message: "User removed from organization ✅" });
   } catch (error) {
     console.error(error);
-    return NextResponse.json({ error: "Failed to delete user" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to remove user" }, { status: 500 });
   }
 }

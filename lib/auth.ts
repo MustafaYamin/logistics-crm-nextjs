@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
+  adapter: PrismaAdapter(prisma) as any, // Cast to any to avoid type mismatch with customized User model
   session: { strategy: "jwt" },
   secret: process.env.NEXTAUTH_SECRET,
   pages: {
@@ -17,14 +17,13 @@ export const authOptions: NextAuthOptions = {
       credentials: {
         email: { label: "Email", type: "text" },
         password: { label: "Password", type: "password" },
-        loginAs: { label: "Login As", type: "text" },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password || !credentials.loginAs) return null;
+        if (!credentials?.email || !credentials?.password) return null;
 
         const user = await prisma.user.findUnique({
           where: { email: credentials.email },
-          include: { roles: true },
+          include: { memberships: { include: { organization: true } } },
         });
 
         if (!user || !user.passwordHash) return null;
@@ -32,16 +31,14 @@ export const authOptions: NextAuthOptions = {
         const isValid = await bcrypt.compare(credentials.password, user.passwordHash);
         if (!isValid) return null;
 
-        const hasRole = user.roles.some((r: { role: string }) => r.role === credentials.loginAs);
-        const isAdmin = user.roles.some((r: { role: string }) => r.role === "ADMIN");
-
-        if (!hasRole && !isAdmin) return null;
-
+        const membership = user.memberships[0];
+        
         return {
           id: String(user.id),
           email: user.email,
-          roles: user.roles.map((r: { role: string }) => r.role),
-          loginAs: credentials.loginAs as "ADMIN" | "CLIENT",
+          orgId: membership ? String(membership.organizationId) : null,
+          orgRole: membership ? membership.role : null,
+          orgSlug: membership ? membership.organization.slug : null,
         };
       },
     }),
@@ -50,19 +47,20 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user }) {
       if (user) {
         token.id = (user as any).id;
-        token.roles = (user as any).roles || [];
-        token.loginAs = (user as any).loginAs;
+        token.orgId = (user as any).orgId;
+        token.orgRole = (user as any).orgRole;
+        token.orgSlug = (user as any).orgSlug;
       }
       return token;
     },
     async session({ session, token }) {
       if (token && session.user) {
         (session.user as any).id = token.id as string;
-        (session.user as any).roles = token.roles as string[];
-        (session.user as any).loginAs = token.loginAs as "ADMIN" | "CLIENT";
+        (session.user as any).orgId = token.orgId as string | null;
+        (session.user as any).orgRole = token.orgRole as string | null;
+        (session.user as any).orgSlug = token.orgSlug as string | null;
       }
       return session;
     },
   },
 };
-

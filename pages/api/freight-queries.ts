@@ -1,10 +1,15 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { prisma } from '@/lib/prisma';
+import { requireOrgPages } from '@/lib/tenancy';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  const { error, org } = await requireOrgPages(req, res);
+  if (error) return;
+
   if (req.method === 'GET') {
     try {
       const queries = await prisma.freightQuery.findMany({
+        where: { organizationId: org!.id },
         orderBy: { createdAt: 'desc' }
       });
       res.status(200).json(queries);
@@ -14,10 +19,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
   } else if (req.method === 'POST') {
     try {
-      // Remove id if present, let DB handle it
       const { id, ...data } = req.body;
       const query = await prisma.freightQuery.create({
         data: {
+            organizationId: org!.id,
             origin: data.origin,
             destination: data.destination,
             cargoType: data.cargoType,
@@ -36,6 +41,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   } else if (req.method === 'PUT') {
     try {
       const { id, ...update } = req.body;
+      const existing = await prisma.freightQuery.findUnique({ where: { id: Number(id) } });
+      if (!existing || existing.organizationId !== org!.id) {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+
       await prisma.freightQuery.update({
         where: { id: Number(id) },
         data: update
@@ -48,6 +58,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   } else if (req.method === 'DELETE') {
     try {
       const { id } = req.body;
+      const existing = await prisma.freightQuery.findUnique({ where: { id: Number(id) } });
+      if (!existing || existing.organizationId !== org!.id) {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+
       await prisma.freightQuery.delete({
         where: { id: Number(id) }
       });
