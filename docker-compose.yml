@@ -1,20 +1,30 @@
 version: '3.8'
 
 services:
-  mysql:
-    image: mysql:8.0
-    container_name: crm_mysql
+  postgres:
+    image: postgres:15
+    container_name: crm_postgres
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: "Ironman2005"
-      MYSQL_DATABASE: bulk_crm
-      MYSQL_USER: admin
-      MYSQL_PASSWORD: "Ironman@2005"
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: "Ironman2005"
+      POSTGRES_DB: bulk_crm
     ports:
-      - "3306:3306"
+      - "5432:5432"
     volumes:
-      - mysql_data:/var/lib/mysql
+      - pg_data:/var/lib/postgresql/data
+
+  app:
+    build: .
+    container_name: crm_app
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=postgresql://admin:Ironman2005@postgres:5432/bulk_crm?schema=public
+      - NEXTAUTH_URL=http://localhost:3000
+    depends_on:
+      - postgres
 
 volumes:
-  mysql_data:
-
+  pg_data:

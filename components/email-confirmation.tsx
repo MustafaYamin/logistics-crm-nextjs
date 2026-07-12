@@ -176,9 +176,8 @@ export default function EmailConfirmation({ recipients }: EmailConfirmationProps
 <p><br></p>
 <p>We're looking for competitive rates and reliable service. Please provide your best quote at your earliest convenience.</p>
 <p><br></p>
-<p>Best regards,<br><strong>Acumen Freight Solutions</strong></p>
-<p>Email: <a href="mailto:networkdesk@acumenfreight.org">networkdesk@acumenfreight.org</a></p>
-<p>LinkedIn: <a href="https://www.linkedin.com/company/acumen-freight-solutions/">Acumen Freight Solutions</a></p>`;
+<p>Best regards,<br><strong>Solutions</strong></p>
+<p>LinkedIn: <a href="https://www.linkedin.com/company/some-solutions-platform">Solutions</a></p>`;
       
       editorRef.current.innerHTML = defaultContent;
       setHtmlContent(defaultContent);

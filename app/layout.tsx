@@ -5,10 +5,6 @@ import ClientSessionProvider from "./ClientSessionProvider";
 
 const inter = Inter({ subsets: ['latin'] });
 
-export const metadata: Metadata = {
-  title: 'Logistics CRM',
-  description: 'Multi-tenant logistics and freight CRM',
-};
 
 export default function RootLayout({
   children,

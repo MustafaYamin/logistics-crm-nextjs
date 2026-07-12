@@ -8,6 +8,7 @@ import { signIn } from "next-auth/react";
 
 export default function SignupPage() {
   const router = useRouter();
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [companyName, setCompanyName] = useState("");
@@ -23,7 +24,7 @@ export default function SignupPage() {
       const res = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, companyName }),
+        body: JSON.stringify({ name, email, password, companyName }),
       });
 
       if (!res.ok) {
@@ -68,6 +69,18 @@ export default function SignupPage() {
         )}
 
         <form onSubmit={handleSignup} className="space-y-5">
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-1.5">Full Name</label>
+            <input
+              type="text"
+              required
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full px-4 py-3 bg-slate-900/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+              placeholder="John Doe"
+            />
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-1.5">Company Name</label>
             <input

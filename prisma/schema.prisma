@@ -4,7 +4,7 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -59,6 +59,7 @@ enum Plan {
 
 model User {
   id           Int        @id @default(autoincrement())
+  name         String?
   email        String     @unique
   passwordHash String
   createdAt    DateTime   @default(now())
